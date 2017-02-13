@@ -72,7 +72,7 @@ xMBPortSerialInit( UCHAR ucPORT, ULONG ulBaudRate, UCHAR ucDataBits, eMBParity e
 	case 0:
 		huart.Instance = USART1;
 		DE_Port = GPIOA;
-		DE_Pin = GPIO_PIN_4;
+		DE_Pin = GPIO_PIN_8;
 		break;
 	case 1:
 		huart.Instance = USART2;
@@ -87,6 +87,13 @@ xMBPortSerialInit( UCHAR ucPORT, ULONG ulBaudRate, UCHAR ucDataBits, eMBParity e
 	default:
 		return FALSE;
 	}
+
+	GPIO_InitTypeDef GPIO_InitStruct;
+    GPIO_InitStruct.Pin = DE_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+    HAL_GPIO_Init(DE_Port, &GPIO_InitStruct);
+
 
 	huart.Init.BaudRate = ulBaudRate;
 

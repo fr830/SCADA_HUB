@@ -29,7 +29,7 @@
 
 /* ----------------------- static functions ---------------------------------*/
 static void prvvTIMERExpiredISR( void );
-static TIM_HandleTypeDef htim;
+TIM_HandleTypeDef htim;
 
 static uint16_t timeout = 0;
 static uint16_t downcounter = 0;
@@ -72,7 +72,7 @@ static void prvvTIMERExpiredISR( void )
     ( void )pxMBPortCBTimerExpired(  );
 }
 
-void TIM6_DAC1_IRQHandler(void) {
+void TIM2_IRQHandler(void) {
 	/* TIM Update event */
 	if(__HAL_TIM_GET_FLAG(&htim, TIM_FLAG_UPDATE) != RESET && __HAL_TIM_GET_IT_SOURCE(&htim, TIM_IT_UPDATE) !=RESET) {
 		__HAL_TIM_CLEAR_IT(&htim, TIM_IT_UPDATE);
