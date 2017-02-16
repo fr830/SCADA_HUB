@@ -1,9 +1,4 @@
 //TODO unused warnings from static keyword
-//V1.0.2:
-//	-Storing SMS owner number and temperature parameters in flash
-//V1.0.1:
-//	-Reply SMS only to owner, and only to correct command
-//V1.0.0 - Original version
 
 #include "stm32f1xx_hal.h"
 #include "SX1278Drv.h"
@@ -14,6 +9,7 @@
 SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim1;
 osTimerId hRxTimer;
+osThreadId hMainTask;
 SX1278Drv_LoRaConfiguration cfg;
 
 void SystemClock_Config(void);
@@ -21,6 +17,7 @@ void Error_Handler(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void RxTimerCallback(void const * argument);
+static void MainTaskFxn(void const * argument);
 
 int main(void){
 
@@ -32,6 +29,9 @@ int main(void){
 
 	osTimerDef(RxTimer, RxTimerCallback);
 	hRxTimer = osTimerCreate(osTimer(RxTimer), osTimerOnce, NULL);
+
+	osThreadDef(MainTask, MainTaskFxn, osPriorityNormal, 0, 512);
+	hMainTask = osThreadCreate(osThread(MainTask), NULL);
 
 	cfg.bw = SX1278Drv_RegLoRaModemConfig1_BW_125;
 	cfg.cr = SX1278Drv_RegLoRaModemConfig1_CR_4_8;
@@ -114,23 +114,16 @@ static void MX_GPIO_Init(void){
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 	__HAL_RCC_GPIOC_CLK_ENABLE();
 	__HAL_RCC_GPIOD_CLK_ENABLE();
-
-	GPIO_InitTypeDef GPIO_InitStruct;
-	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-
-	GPIO_InitStruct.Pin = GPIO_PIN_12 | GPIO_PIN_13 | GPIO_PIN_14 | GPIO_PIN_15;
-	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-	GPIO_InitStruct.Pin = GPIO_PIN_8 | GPIO_PIN_11 | GPIO_PIN_1;
-	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-	GPIO_InitStruct.Pin = SPICSPin.pin;
-	HAL_GPIO_Init(SPICSPin.port, &GPIO_InitStruct);
 }
 
 void Error_Handler(void){
   while(1);
+}
+
+static void MainTaskFxn(void const * argument){
+	while(1){
+		//here goes LoRa poll loop
+	}
 }
 
 static void RxTimerCallback(void const * argument){}
