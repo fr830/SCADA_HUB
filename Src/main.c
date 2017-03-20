@@ -6,6 +6,14 @@
 #include "main.h"
 #include "cmsis_os.h"
 
+#include "mb.h"
+#include "mbfunc.h"
+
+uint8_t MB_Reg;
+
+/* USER CODE BEGIN PV */
+/* Private variables ---------------------------------------------------------*/
+
 SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim1;
 osTimerId hRxTimer;
@@ -19,6 +27,14 @@ static void MX_SPI1_Init(void);
 static void RxTimerCallback(void const * argument);
 static void MainTaskFxn(void const * argument);
 
+volatile bool LoRaError; // TODO ugly workaroung
+volatile bool LoRaSuccess; // TODO ugly workaroung
+
+volatile uint16_t LoRaResponse;
+
+static  eMBException MB_Read_Callback(UCHAR * pucFrame, USHORT * pusLength);
+static  eMBException MB_Write_Callback(UCHAR * pucFrame, USHORT * pusLength);
+
 int main(void){
 
 	HAL_Init();
@@ -26,6 +42,15 @@ int main(void){
 	SystemClock_Config();
 	MX_GPIO_Init();
 	MX_SPI1_Init();
+
+  uint8_t MB_address = 30;
+
+  eMBInit(MB_RTU, &MB_address, 1, 0, 19200, MB_PAR_NONE);
+
+  eMBRegisterCB( MB_FUNC_READ_HOLDING_REGISTER, MB_Read_Callback );
+  eMBRegisterCB( MB_FUNC_WRITE_REGISTER, MB_Write_Callback );
+  //eMBRegisterCB( MB_FUNC_READ_INPUT_REGISTER, MB_Read_Callback );
+	 eMBEnable();
 
 	osTimerDef(RxTimer, RxTimerCallback);
 	hRxTimer = osTimerCreate(osTimer(RxTimer), osTimerOnce, NULL);
@@ -36,22 +61,27 @@ int main(void){
 	cfg.bw = SX1278Drv_RegLoRaModemConfig1_BW_125;
 	cfg.cr = SX1278Drv_RegLoRaModemConfig1_CR_4_8;
 	cfg.crc = SX1278Drv_RegLoRaModemConfig2_PayloadCrc_ON;
-	cfg.frequency = 868e6;
+	cfg.frequency = 434e6;
 	cfg.hdrMode = SX1278Drv_RegLoRaModemConfig1_HdrMode_Explicit;
 	cfg.power = 17;
 	cfg.preambleLength = 20;//
-	cfg.sf = SX1278Drv_RegLoRaModemConfig2_SF_12;
+	cfg.sf = SX1278Drv_RegLoRaModemConfig2_SF_11;
 	cfg.spi = &hspi1;
-	cfg.spi_css_pin = &SPICSPin;
+	cfg.spi_css_pin = &SPICSMyPin;
 	//cfg.rx_en = &LoRaRxEnPin;
 	//cfg.tx_en = &LoRaTxEnPin;
 	cfg.sleepInIdle = true;
 
 	SX1278Drv_Init(&cfg);
-	//SX1278Drv_SetAdresses(0, (uint16_t *)AddrSensors, SensorCount);
-	//SX1278Drv_SetAdresses(SensorCount, (uint16_t *)AddrRelays, RelayCount);
+
+	uint16_t relayAddr = 1;
+	uint16_t inputAddr = 2;
+
+	SX1278Drv_SetAdresses(0, &relayAddr, 1);
+	SX1278Drv_SetAdresses(1, &inputAddr, 1);
 
 	osKernelStart();
+
 	return 0;
 }
 
@@ -110,21 +140,98 @@ static void MX_GPIO_Init(void){
 	__HAL_RCC_GPIOD_CLK_ENABLE();
 }
 
+/* USER CODE BEGIN 4 */
+static  eMBException MB_Read_Callback(UCHAR * pucFrame, USHORT * pusLength)
+{
+	return eMBFuncReadHoldingRegister(pucFrame, pusLength);
+}
+
+static  eMBException MB_Write_Callback(UCHAR * pucFrame, USHORT * pusLength)
+{
+	return eMBFuncWriteHoldingRegister(pucFrame, pusLength);
+}
+
+eMBErrorCode    eMBRegHoldingCB( UCHAR * pucRegBuffer,  UCHAR ucMBAddress, USHORT usAddress, USHORT usNRegs, eMBRegisterMode eMode ){
+	LoRa_Message msg;
+	if(ucMBAddress == 30){
+		if((eMode == MB_REG_WRITE) &&
+		   (usNRegs == 1) &&
+		   (usAddress == 1)){
+			msg.address = 1;
+			memcpy(msg.payload, pucRegBuffer, 2);
+			msg.payloadLength = 2;
+			SX1278Drv_SendMessage(&msg);
+			LoRaError = false;
+			LoRaSuccess = false;
+			osTimerStart(hRxTimer, 6000);
+			while((!LoRaError) && (!LoRaSuccess));
+			if(LoRaError)
+				return MB_ETIMEDOUT;
+
+			return MB_ENOERR;
+		}
+		else if((eMode == MB_REG_READ) &&
+				(usNRegs == 1) &&
+				(usAddress == 2)){
+			msg.address = 2;
+			msg.payload[0] = 1;
+			msg.payloadLength = 1;
+			SX1278Drv_SendMessage(&msg);
+			LoRaError = false;
+			LoRaSuccess = false;
+			osTimerStart(hRxTimer, 5000);
+			while((!LoRaError) && (!LoRaSuccess));
+			if(LoRaError)
+				return MB_ETIMEDOUT;
+
+			memcpy(pucRegBuffer, (uint8_t *)&LoRaResponse, 2);
+			return MB_ENOERR;
+		}
+	}
+
+	return MB_ENOREG;
+
+}
+eMBErrorCode    eMBRegInputCB( UCHAR * pucRegBuffer, USHORT usAddress,
+                               USHORT usNRegs )
+{
+	pucRegBuffer[0] = MB_Reg;
+		MB_Reg++;
+		return MB_ENOERR;
+}
+
 void Error_Handler(void){
   while(1);
 }
 
 static void MainTaskFxn(void const * argument){
 	while(1){
-		//here goes LoRa poll loop
+		eMBPoll();
 	}
 }
 
-static void RxTimerCallback(void const * argument){}
+static void RxTimerCallback(void const * argument){
+	LoRaError = true;
+}
 
-void SX1278Drv_LoRaRxCallback(LoRa_Message *msg){}
+void SX1278Drv_LoRaRxCallback(LoRa_Message *msg){
+	switch(msg->address){
+		case 1:
+			osTimerStop(hRxTimer);
+			LoRaSuccess = true;
+			break;
+		case 2:
+			osTimerStop(hRxTimer);
+			LoRaSuccess = true;
+			memcpy((uint8_t *)&LoRaResponse, msg->payload, 2);
+			break;
+	}
+}
 
-void SX1278Drv_LoRaRxError(){}
+void SX1278Drv_LoRaRxError(){
+	osTimerStop(hRxTimer);
+	LoRaError = true;
+}
 
 void SX1278Drv_LoRaTxCallback(LoRa_Message *msg){}
 
