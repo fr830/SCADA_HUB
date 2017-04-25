@@ -29,7 +29,7 @@ static void MainTaskFxn(void const * argument);
 
 volatile bool LoRaError; // TODO ugly workaroung
 volatile bool LoRaSuccess; // TODO ugly workaroung
-
+volatile uint8_t LoRaData[64]; // TODO ugly workaroung
 volatile uint16_t LoRaResponse;
 
 static  eMBException MB_Read_Callback(UCHAR * pucFrame, USHORT * pusLength);
@@ -43,12 +43,12 @@ int main(void){
 	MX_GPIO_Init();
 	MX_SPI1_Init();
 
-  uint8_t MB_address = 30;
+	uint8_t MB_address = 30;
 
-  eMBInit(MB_RTU, &MB_address, 1, 0, 19200, MB_PAR_NONE);
+	eMBInit(MB_RTU, &MB_address, 1, 0, 19200, MB_PAR_NONE);
 
-  eMBRegisterCB( MB_FUNC_READ_HOLDING_REGISTER, MB_Read_Callback );
-  eMBRegisterCB( MB_FUNC_WRITE_REGISTER, MB_Write_Callback );
+	eMBRegisterCB( MB_FUNC_READ_HOLDING_REGISTER, MB_Read_Callback );
+	eMBRegisterCB( MB_FUNC_WRITE_REGISTER, MB_Write_Callback );
   //eMBRegisterCB( MB_FUNC_READ_INPUT_REGISTER, MB_Read_Callback );
 	 eMBEnable();
 
@@ -111,6 +111,7 @@ void SystemClock_Config(void){
 	HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 	HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
 	HAL_NVIC_SetPriority(SysTick_IRQn, 15, 0);
+
 }
 
 /* SPI1 init function */
@@ -153,7 +154,7 @@ static  eMBException MB_Write_Callback(UCHAR * pucFrame, USHORT * pusLength)
 
 eMBErrorCode    eMBRegHoldingCB( UCHAR * pucRegBuffer,  UCHAR ucMBAddress, USHORT usAddress, USHORT usNRegs, eMBRegisterMode eMode ){
 	LoRa_Message msg;
-	if(ucMBAddress == 30){
+/*	if(ucMBAddress == 30){
 		if((eMode == MB_REG_WRITE) &&
 		   (usNRegs == 1) &&
 		   (usAddress == 1)){
@@ -187,7 +188,7 @@ eMBErrorCode    eMBRegHoldingCB( UCHAR * pucRegBuffer,  UCHAR ucMBAddress, USHOR
 			memcpy(pucRegBuffer, (uint8_t *)&LoRaResponse, 2);
 			return MB_ENOERR;
 		}
-	}
+	}*/
 
 	return MB_ENOREG;
 
@@ -215,22 +216,13 @@ static void RxTimerCallback(void const * argument){
 }
 
 void SX1278Drv_LoRaRxCallback(LoRa_Message *msg){
-	switch(msg->address){
-		case 1:
-			osTimerStop(hRxTimer);
-			LoRaSuccess = true;
-			break;
-		case 2:
-			osTimerStop(hRxTimer);
-			LoRaSuccess = true;
-			memcpy((uint8_t *)&LoRaResponse, msg->payload, 2);
-			break;
-	}
+	memcpy(LoRaData, msg->payload + 4, msg->payloadLength - 4);
+	LoRaSuccess = true;
 }
 
 void SX1278Drv_LoRaRxError(){
-	osTimerStop(hRxTimer);
-	LoRaError = true;
+	//osTimerStop(hRxTimer);
+	//LoRaError = true;
 }
 
 void SX1278Drv_LoRaTxCallback(LoRa_Message *msg){}
