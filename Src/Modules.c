@@ -52,7 +52,7 @@ void pollRelay(uint16_t moduleNumber){
 	}
 	if(LoRaSuccess){
 		relayData[moduleNumber].status = ModuleStatus_Online;
-		memcpy(&(relayData[moduleNumber].relayState), LoRaData, 2);
+		memcpy(&(relayData[moduleNumber].relayState), (uint8_t *)LoRaData, 2);
 		return;
 	}
 }
@@ -82,7 +82,7 @@ void pollDigitalInput(uint16_t moduleNumber){
 	}
 	if(LoRaSuccess){
 		digitalInputData[moduleNumber].status = ModuleStatus_Online;
-		memcpy(&(digitalInputData[moduleNumber].inputState), LoRaData, 2);
+		memcpy(&(digitalInputData[moduleNumber].inputState), (uint8_t *)LoRaData, 2);
 		return;
 	}
 }
@@ -112,7 +112,7 @@ void pollAnalogInput(uint16_t moduleNumber){
 	}
 	if(LoRaSuccess){
 		analogInputData[moduleNumber].status = ModuleStatus_Online;
-		memcpy(&(analogInputData[moduleNumber].voltage), LoRaData, 2);
+		memcpy(&(analogInputData[moduleNumber].voltage), (uint8_t *)LoRaData, 2);
 		return;
 	}
 }
@@ -142,7 +142,7 @@ void pollTemperature(uint16_t moduleNumber){
 	}
 	if(LoRaSuccess){
 		temperatureData[moduleNumber].status = ModuleStatus_Online;
-		memcpy(&(temperatureData[moduleNumber].temperature), LoRaData, 2);
+		memcpy(&(temperatureData[moduleNumber].temperature), (uint8_t *)LoRaData, 2);
 		return;
 	}
 }
@@ -175,4 +175,51 @@ void PollModules(){
 	for(i = 0; i < ModuleCount; i++){
 		handlers[modules[i].moduleType](modules[i].moduleNumber);
 	}
+}
+// returned value - is reg valid
+bool getMBRegValue(uint16_t MBAddress, uint16_t regAddress, uint16_t *val){
+	ModuleDesc searchDesc;
+	switch(MBAddress){
+	case ModBusAddress_Relay:
+		searchDesc.moduleType = ModuleType_Relay;
+		break;
+	case ModBusAddress_DigitalInput:
+		searchDesc.moduleType = ModuleType_DigitalInput;
+		break;
+	default:
+		return false;
+	}
+
+	searchDesc.moduleNumber = regAddress / RegPerModule;
+
+	if(findModule(&searchDesc) == -1)
+		return false;
+
+	//ugly workaround
+
+	switch(MBAddress){
+	case ModBusAddress_Relay:
+		switch(regAddress % RegPerModule){
+		case 0:
+			*val = relayData[searchDesc.moduleNumber].status;
+			break;
+		case 1:
+			*val = (uint16_t)relayData[searchDesc.moduleNumber].relayState;
+			break;
+		}
+		break;
+	case ModBusAddress_DigitalInput:
+		switch(regAddress % RegPerModule){
+		case 0:
+			*val = (uint16_t)digitalInputData[searchDesc.moduleNumber].status;
+			break;
+		case 1:
+			*val = (uint16_t)digitalInputData[searchDesc.moduleNumber].inputState;
+			break;
+		}
+	default:
+		return false;
+	}
+
+	return true;
 }

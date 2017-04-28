@@ -153,7 +153,20 @@ static  eMBException MB_Write_Callback(UCHAR * pucFrame, USHORT * pusLength)
 }
 
 eMBErrorCode    eMBRegHoldingCB( UCHAR * pucRegBuffer,  UCHAR ucMBAddress, USHORT usAddress, USHORT usNRegs, eMBRegisterMode eMode ){
-	LoRa_Message msg;
+	if(usNRegs > 1)
+		return MB_EPORTERR;
+
+//	LoRa_Message msg;
+	if(eMode == MB_REG_READ){
+		if(getMBRegValue(ucMBAddress,usAddress,pucRegBuffer))
+			return MB_ENOERR;
+		else
+			return MB_ENOREG;
+	}
+	else if(eMode == MB_REG_WRITE){
+
+	}
+
 /*	if(ucMBAddress == 30){
 		if((eMode == MB_REG_WRITE) &&
 		   (usNRegs == 1) &&

@@ -18,6 +18,11 @@
 
 #define ModuleCount 2
 #define MaxModuleNumber 300
+#define RegPerModule 32
+enum{
+	ModBusAddress_Relay = 30,
+	ModBusAddress_DigitalInput = 31,
+} typedef ModBusAddress;
 
 enum{
 	SCADACommandType_Read,
@@ -72,6 +77,6 @@ AnalogInputData analogInputData[MaxModuleNumber];
 TemperatureData temperatureData[MaxModuleNumber];
 
 void PollModules();
-
+bool getMBRegValue(uint16_t MBAddress, uint16_t regAddress, uint16_t *val);
 
 #endif /* DEVICES_H_ */
