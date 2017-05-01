@@ -20,6 +20,19 @@ void pollDigitalInput(uint16_t moduleNumber);
 void pollAnalogInput(uint16_t moduleNumber);
 void pollTemperature(uint16_t moduleNumber);
 
+ModuleDesc modules[ModuleCount] = {
+	{
+		ModuleMask_Relay|0x0000,
+		ModuleType_Relay,
+		0
+	},
+	{
+		ModuleMask_DigitalInput|0x0000,
+		ModuleType_DigitalInput,
+		0
+	}
+};
+
 ModulePollFxnHandler handlers[ModuleType_Count] = {
 	pollRelay,
 	pollDigitalInput,
@@ -30,31 +43,34 @@ ModulePollFxnHandler handlers[ModuleType_Count] = {
 void pollRelay(uint16_t moduleNumber){
 	ModuleDesc searchDesc;
 	searchDesc.moduleNumber = moduleNumber;
-	searchDesc.moduleType = ModuleType_DigitalInput;
+	searchDesc.moduleType = ModuleType_Relay;
 	uint16_t moduleIdx = findModule(&searchDesc);
 	if(moduleIdx == -1)
 		return;
+
 	LoRa_Message msg;
 	msg.address = modules[moduleIdx].LoRaAddress;
 	msg.payload[0] = SCADACommandType_Read;
-	uint16_t startReg = 1;
-	memcpy(msg.payload+1, &startReg, 2);
-	uint16_t regCount = 2;
-	memcpy(msg.payload+3, &regCount, 2);
 	msg.payloadLength = 5;
-	LoRaError = false;
-	LoRaSuccess = false;
-	SX1278Drv_SendMessage(&msg);
-	while((!LoRaSuccess)&&(!LoRaError));
-	if(LoRaError){
+	msg.messageType = MessageType_ReqWRep;
+
+	uint16_t startReg = 1;
+	uint16_t regCount = 2;
+
+	memcpy(msg.payload+1, &startReg, 2);
+	memcpy(msg.payload+3, &regCount, 2);
+
+	bool res = SX1278Drv_SendMessageBlocking(&msg,5000);
+	if(res){
+		relayData[moduleNumber].status = ModuleStatus_Online;
+		memcpy(&(relayData[moduleNumber].relayState), msg.payload + 7, 2);
+		return;
+	}
+	else{
 		relayData[moduleNumber].status = ModuleStatus_Offline;
 		return;
 	}
-	if(LoRaSuccess){
-		relayData[moduleNumber].status = ModuleStatus_Online;
-		memcpy(&(relayData[moduleNumber].relayState), (uint8_t *)LoRaData, 2);
-		return;
-	}
+
 }
 
 void pollDigitalInput(uint16_t moduleNumber){
@@ -67,22 +83,23 @@ void pollDigitalInput(uint16_t moduleNumber){
 	LoRa_Message msg;
 	msg.address = modules[moduleIdx].LoRaAddress;
 	msg.payload[0] = SCADACommandType_Read;
-	uint16_t startReg = 1;
-	memcpy(msg.payload+1, &startReg, 2);
-	uint16_t regCount = 2;
-	memcpy(msg.payload+3, &regCount, 2);
 	msg.payloadLength = 5;
-	LoRaError = false;
-	LoRaSuccess = false;
-	SX1278Drv_SendMessage(&msg);
-	while((!LoRaSuccess)&&(!LoRaError));
-	if(LoRaError){
-		digitalInputData[moduleNumber].status = ModuleStatus_Offline;
+	msg.messageType = MessageType_ReqWRep;
+
+	uint16_t startReg = 1;
+	uint16_t regCount = 2;
+
+	memcpy(msg.payload+1, &startReg, 2);
+	memcpy(msg.payload+3, &regCount, 2);
+
+	bool res = SX1278Drv_SendMessageBlocking(&msg,5000);
+	if(res){
+		digitalInputData[moduleNumber].status = ModuleStatus_Online;
+		memcpy(&(digitalInputData[moduleNumber].inputState), msg.payload + 7, 2);
 		return;
 	}
-	if(LoRaSuccess){
-		digitalInputData[moduleNumber].status = ModuleStatus_Online;
-		memcpy(&(digitalInputData[moduleNumber].inputState), (uint8_t *)LoRaData, 2);
+	else{
+		digitalInputData[moduleNumber].status = ModuleStatus_Offline;
 		return;
 	}
 }
@@ -102,11 +119,8 @@ void pollAnalogInput(uint16_t moduleNumber){
 	uint16_t regCount = 2;
 	memcpy(msg.payload+3, &regCount, 2);
 	msg.payloadLength = 5;
-	LoRaError = false;
-	LoRaSuccess = false;
-	SX1278Drv_SendMessage(&msg);
-	while((!LoRaSuccess)&&(!LoRaError));
-	if(LoRaError){
+
+	/*if(LoRaError){
 		analogInputData[moduleNumber].status = ModuleStatus_Offline;
 		return;
 	}
@@ -114,7 +128,7 @@ void pollAnalogInput(uint16_t moduleNumber){
 		analogInputData[moduleNumber].status = ModuleStatus_Online;
 		memcpy(&(analogInputData[moduleNumber].voltage), (uint8_t *)LoRaData, 2);
 		return;
-	}
+	}*/
 }
 
 void pollTemperature(uint16_t moduleNumber){
@@ -132,11 +146,9 @@ void pollTemperature(uint16_t moduleNumber){
 	uint16_t regCount = 2;
 	memcpy(msg.payload+3, &regCount, 2);
 	msg.payloadLength = 5;
-	LoRaError = false;
-	LoRaSuccess = false;
-	SX1278Drv_SendMessage(&msg);
-	while((!LoRaSuccess)&&(!LoRaError));
-	if(LoRaError){
+
+
+	/*if(LoRaError){
 		temperatureData[moduleNumber].status = ModuleStatus_Offline;
 		return;
 	}
@@ -144,21 +156,9 @@ void pollTemperature(uint16_t moduleNumber){
 		temperatureData[moduleNumber].status = ModuleStatus_Online;
 		memcpy(&(temperatureData[moduleNumber].temperature), (uint8_t *)LoRaData, 2);
 		return;
-	}
+	}*/
 }
 
-ModuleDesc modules[ModuleCount] = {
-	{
-		ModuleMask_Relay|0x0000,
-		ModuleType_Relay,
-		0
-	},
-	{
-		ModuleMask_DigitalInput|0x0000,
-		ModuleType_DigitalInput,
-		0
-	}
-};
 
 static uint16_t findModule(ModuleDesc *desc){
 	uint16_t i;
@@ -200,26 +200,68 @@ bool getMBRegValue(uint16_t MBAddress, uint16_t regAddress, uint16_t *val){
 	switch(MBAddress){
 	case ModBusAddress_Relay:
 		switch(regAddress % RegPerModule){
-		case 0:
+		case 1:
 			*val = relayData[searchDesc.moduleNumber].status;
 			break;
-		case 1:
+		case 2:
 			*val = (uint16_t)relayData[searchDesc.moduleNumber].relayState;
 			break;
 		}
 		break;
 	case ModBusAddress_DigitalInput:
 		switch(regAddress % RegPerModule){
-		case 0:
+		case 1:
 			*val = (uint16_t)digitalInputData[searchDesc.moduleNumber].status;
 			break;
-		case 1:
+		case 2:
 			*val = (uint16_t)digitalInputData[searchDesc.moduleNumber].inputState;
 			break;
 		}
+		break;
 	default:
 		return false;
 	}
 
+	*val = ((*val)>>8) | ((*val)<<8);
+
 	return true;
+}
+
+bool setMBRegValue(uint16_t MBAddress, uint16_t regAddress, uint16_t *val){
+	ModuleDesc searchDesc;
+	switch(MBAddress){
+	case ModBusAddress_Relay:
+		searchDesc.moduleType = ModuleType_Relay;
+		break;
+	case ModBusAddress_DigitalInput:
+		searchDesc.moduleType = ModuleType_DigitalInput;
+		break;
+	default:
+		return false;
+	}
+
+	searchDesc.moduleNumber = regAddress / RegPerModule;
+
+	uint16_t moduleIdx = findModule(&searchDesc);
+
+	if(moduleIdx == -1)
+		return false;
+
+	LoRa_Message msg;
+	msg.address = modules[moduleIdx].LoRaAddress;
+	msg.payload[0] = SCADACommandType_Write;
+	msg.payloadLength = 5 + 2;
+	msg.messageType = MessageType_ReqWRep;
+
+	uint16_t regCount = 1;
+
+	*val = ((*val)>>8) | ((*val)<<8);
+
+	memcpy(msg.payload+1, &regAddress, 2);
+	memcpy(msg.payload+3, &regCount, 2);
+	memcpy(msg.payload+5, (uint8_t *)val, 2);
+
+	bool res = SX1278Drv_SendMessageBlocking(&msg,10000);
+
+	return res;
 }

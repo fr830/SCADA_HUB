@@ -11,10 +11,10 @@
 #include <stdint.h>
 #include "SX1278Drv.h"
 
-#define ModuleMask_Relay 0x0000
+#define ModuleMask_Relay 0x1000
 #define ModuleMask_DigitalInput 0x2000
-#define ModuleMask_AnalogInput 0x4000
-#define ModuleMask_Temperature 0x6000
+#define ModuleMask_AnalogInput 0x3000
+#define ModuleMask_Temperature 0x4000
 
 #define ModuleCount 2
 #define MaxModuleNumber 300
@@ -78,5 +78,6 @@ TemperatureData temperatureData[MaxModuleNumber];
 
 void PollModules();
 bool getMBRegValue(uint16_t MBAddress, uint16_t regAddress, uint16_t *val);
+bool setMBRegValue(uint16_t MBAddress, uint16_t regAddress, uint16_t *val);
 
 #endif /* DEVICES_H_ */

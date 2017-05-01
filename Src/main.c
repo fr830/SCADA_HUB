@@ -18,6 +18,7 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim1;
 osTimerId hRxTimer;
 osThreadId hMainTask;
+osThreadId hMBPollTask;
 SX1278Drv_LoRaConfiguration cfg;
 
 void SystemClock_Config(void);
@@ -26,11 +27,7 @@ static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void RxTimerCallback(void const * argument);
 static void MainTaskFxn(void const * argument);
-
-volatile bool LoRaError; // TODO ugly workaroung
-volatile bool LoRaSuccess; // TODO ugly workaroung
-volatile uint8_t LoRaData[64]; // TODO ugly workaroung
-volatile uint16_t LoRaResponse;
+static void MBPollTaskFxn(void const * argument);
 
 static  eMBException MB_Read_Callback(UCHAR * pucFrame, USHORT * pusLength);
 static  eMBException MB_Write_Callback(UCHAR * pucFrame, USHORT * pusLength);
@@ -43,20 +40,22 @@ int main(void){
 	MX_GPIO_Init();
 	MX_SPI1_Init();
 
-	uint8_t MB_address = 30;
+	uint8_t MB_address[2] = {30, 31};
 
-	eMBInit(MB_RTU, &MB_address, 1, 0, 19200, MB_PAR_NONE);
+	eMBInit(MB_RTU, &MB_address, 2, 0, 19200, MB_PAR_NONE);
 
 	eMBRegisterCB( MB_FUNC_READ_HOLDING_REGISTER, MB_Read_Callback );
-	eMBRegisterCB( MB_FUNC_WRITE_REGISTER, MB_Write_Callback );
-  //eMBRegisterCB( MB_FUNC_READ_INPUT_REGISTER, MB_Read_Callback );
-	 eMBEnable();
+	eMBRegisterCB( MB_FUNC_WRITE_MULTIPLE_REGISTERS, MB_Write_Callback );
+	eMBEnable();
 
 	osTimerDef(RxTimer, RxTimerCallback);
 	hRxTimer = osTimerCreate(osTimer(RxTimer), osTimerOnce, NULL);
 
-	osThreadDef(MainTask, MainTaskFxn, osPriorityNormal, 0, 512);
+	osThreadDef(MainTask, MainTaskFxn, osPriorityNormal, 0, 256);
 	hMainTask = osThreadCreate(osThread(MainTask), NULL);
+
+	osThreadDef(MBPollTask, MBPollTaskFxn, osPriorityNormal, 0, 256);
+	hMBPollTask = osThreadCreate(osThread(MBPollTask), NULL);
 
 	cfg.bw = SX1278Drv_RegLoRaModemConfig1_BW_125;
 	cfg.cr = SX1278Drv_RegLoRaModemConfig1_CR_4_8;
@@ -70,12 +69,12 @@ int main(void){
 	cfg.spi_css_pin = &SPICSMyPin;
 	//cfg.rx_en = &LoRaRxEnPin;
 	//cfg.tx_en = &LoRaTxEnPin;
-	cfg.sleepInIdle = true;
+	cfg.sleepInIdle = false;
 
 	SX1278Drv_Init(&cfg);
 
-	uint16_t relayAddr = 1;
-	uint16_t inputAddr = 2;
+	uint16_t relayAddr = 0x1000;
+	uint16_t inputAddr = 0x2000;
 
 	SX1278Drv_SetAdresses(0, &relayAddr, 1);
 	SX1278Drv_SetAdresses(1, &inputAddr, 1);
@@ -149,7 +148,7 @@ static  eMBException MB_Read_Callback(UCHAR * pucFrame, USHORT * pusLength)
 
 static  eMBException MB_Write_Callback(UCHAR * pucFrame, USHORT * pusLength)
 {
-	return eMBFuncWriteHoldingRegister(pucFrame, pusLength);
+	return eMBFuncWriteMultipleHoldingRegister(pucFrame, pusLength);
 }
 
 eMBErrorCode    eMBRegHoldingCB( UCHAR * pucRegBuffer,  UCHAR ucMBAddress, USHORT usAddress, USHORT usNRegs, eMBRegisterMode eMode ){
@@ -164,7 +163,10 @@ eMBErrorCode    eMBRegHoldingCB( UCHAR * pucRegBuffer,  UCHAR ucMBAddress, USHOR
 			return MB_ENOREG;
 	}
 	else if(eMode == MB_REG_WRITE){
-
+		if(setMBRegValue(ucMBAddress,usAddress,pucRegBuffer))
+			return MB_ENOERR;
+		else
+			return MB_ENOREG;
 	}
 
 /*	if(ucMBAddress == 30){
@@ -206,12 +208,10 @@ eMBErrorCode    eMBRegHoldingCB( UCHAR * pucRegBuffer,  UCHAR ucMBAddress, USHOR
 	return MB_ENOREG;
 
 }
-eMBErrorCode    eMBRegInputCB( UCHAR * pucRegBuffer, USHORT usAddress,
-                               USHORT usNRegs )
-{
+eMBErrorCode eMBRegInputCB( UCHAR * pucRegBuffer, USHORT usAddress, USHORT usNRegs ){
 	pucRegBuffer[0] = MB_Reg;
-		MB_Reg++;
-		return MB_ENOERR;
+	MB_Reg++;
+	return MB_ENOERR;
 }
 
 void Error_Handler(void){
@@ -220,22 +220,23 @@ void Error_Handler(void){
 
 static void MainTaskFxn(void const * argument){
 	while(1){
+		PollModules();
+	}
+}
+
+static void MBPollTaskFxn(void const * argument){
+	while(1){
 		eMBPoll();
 	}
 }
 
 static void RxTimerCallback(void const * argument){
-	LoRaError = true;
 }
 
 void SX1278Drv_LoRaRxCallback(LoRa_Message *msg){
-	memcpy(LoRaData, msg->payload + 4, msg->payloadLength - 4);
-	LoRaSuccess = true;
 }
 
 void SX1278Drv_LoRaRxError(){
-	//osTimerStop(hRxTimer);
-	//LoRaError = true;
 }
 
 void SX1278Drv_LoRaTxCallback(LoRa_Message *msg){}
