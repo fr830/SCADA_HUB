@@ -30,6 +30,21 @@ ModuleDesc modules[ModuleCount] = {
 		ModuleMask_DigitalInput|0x0000,
 		ModuleType_DigitalInput,
 		0
+	},
+	{
+		ModuleMask_DigitalInput|0x0001,
+		ModuleType_DigitalInput,
+		1
+	},
+	{
+		ModuleMask_DigitalInput|0x0002,
+		ModuleType_DigitalInput,
+		2
+	},
+	{
+		ModuleMask_AnalogInput|0x0000,
+		ModuleType_AnalogInput,
+		0
 	}
 };
 
@@ -111,24 +126,29 @@ void pollAnalogInput(uint16_t moduleNumber){
 	uint16_t moduleIdx = findModule(&searchDesc);
 	if(moduleIdx == -1)
 		return;
+
 	LoRa_Message msg;
 	msg.address = modules[moduleIdx].LoRaAddress;
 	msg.payload[0] = SCADACommandType_Read;
-	uint16_t startReg = 1;
-	memcpy(msg.payload+1, &startReg, 2);
-	uint16_t regCount = 2;
-	memcpy(msg.payload+3, &regCount, 2);
 	msg.payloadLength = 5;
+	msg.messageType = MessageType_ReqWRep;
 
-	/*if(LoRaError){
+	uint16_t startReg = 1;
+	uint16_t regCount = 2;
+
+	memcpy(msg.payload+1, &startReg, 2);
+	memcpy(msg.payload+3, &regCount, 2);
+
+	bool res = SX1278Drv_SendMessageBlocking(&msg,5000);
+	if(res){
+		analogInputData[moduleNumber].status = ModuleStatus_Online;
+		memcpy(&(analogInputData[moduleNumber].voltage), msg.payload + 7, 2);
+		return;
+	}
+	else{
 		analogInputData[moduleNumber].status = ModuleStatus_Offline;
 		return;
 	}
-	if(LoRaSuccess){
-		analogInputData[moduleNumber].status = ModuleStatus_Online;
-		memcpy(&(analogInputData[moduleNumber].voltage), (uint8_t *)LoRaData, 2);
-		return;
-	}*/
 }
 
 void pollTemperature(uint16_t moduleNumber){
@@ -138,25 +158,29 @@ void pollTemperature(uint16_t moduleNumber){
 	uint16_t moduleIdx = findModule(&searchDesc);
 	if(moduleIdx == -1)
 		return;
+
 	LoRa_Message msg;
 	msg.address = modules[moduleIdx].LoRaAddress;
 	msg.payload[0] = SCADACommandType_Read;
-	uint16_t startReg = 1;
-	memcpy(msg.payload+1, &startReg, 2);
-	uint16_t regCount = 2;
-	memcpy(msg.payload+3, &regCount, 2);
 	msg.payloadLength = 5;
+	msg.messageType = MessageType_ReqWRep;
 
+	uint16_t startReg = 1;
+	uint16_t regCount = 2;
 
-	/*if(LoRaError){
+	memcpy(msg.payload+1, &startReg, 2);
+	memcpy(msg.payload+3, &regCount, 2);
+
+	bool res = SX1278Drv_SendMessageBlocking(&msg,5000);
+	if(res){
+		temperatureData[moduleNumber].status = ModuleStatus_Online;
+		memcpy(&(temperatureData[moduleNumber].temperature), msg.payload + 7, 2);
+		return;
+	}
+	else{
 		temperatureData[moduleNumber].status = ModuleStatus_Offline;
 		return;
 	}
-	if(LoRaSuccess){
-		temperatureData[moduleNumber].status = ModuleStatus_Online;
-		memcpy(&(temperatureData[moduleNumber].temperature), (uint8_t *)LoRaData, 2);
-		return;
-	}*/
 }
 
 

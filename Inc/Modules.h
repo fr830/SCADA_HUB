@@ -16,7 +16,7 @@
 #define ModuleMask_AnalogInput 0x3000
 #define ModuleMask_Temperature 0x4000
 
-#define ModuleCount 2
+#define ModuleCount 5
 #define MaxModuleNumber 300
 #define RegPerModule 32
 enum{

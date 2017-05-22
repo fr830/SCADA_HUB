@@ -69,6 +69,7 @@ int main(void){
 	cfg.spi_css_pin = &SPICSMyPin;
 	//cfg.rx_en = &LoRaRxEnPin;
 	//cfg.tx_en = &LoRaTxEnPin;
+	cfg.tx_led = &LoRaTxRxPin;
 	cfg.sleepInIdle = false;
 
 	SX1278Drv_Init(&cfg);
