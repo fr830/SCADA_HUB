@@ -42,7 +42,7 @@ int main(void){
 
 	uint8_t MB_address[2] = {30, 31};
 
-	eMBInit(MB_RTU, &MB_address, 2, 0, 19200, MB_PAR_NONE);
+	eMBInit(MB_RTU, MB_address, 2, 0, 19200, MB_PAR_NONE);
 
 	eMBRegisterCB( MB_FUNC_READ_HOLDING_REGISTER, MB_Read_Callback );
 	eMBRegisterCB( MB_FUNC_WRITE_MULTIPLE_REGISTERS, MB_Write_Callback );
@@ -71,14 +71,20 @@ int main(void){
 	//cfg.tx_en = &LoRaTxEnPin;
 	cfg.tx_led = &LoRaTxRxPin;
 	cfg.sleepInIdle = false;
+	cfg.address = 0x0001;
+	cfg.netID = 0x01;
+	cfg.GUID = 0x2B2CB0ED7CAA4FED;
 
 	SX1278Drv_Init(&cfg);
 
 	uint16_t relayAddr = 0x1000;
 	uint16_t inputAddr = 0x2000;
 
-	SX1278Drv_SetAdresses(0, &relayAddr, 1);
-	SX1278Drv_SetAdresses(1, &inputAddr, 1);
+	SX1278Drv_AddDeviceAddress(0x1000);
+	SX1278Drv_AddDeviceAddress(0x2000);
+	SX1278Drv_AddDeviceAddress(0x2001);
+	SX1278Drv_AddDeviceAddress(0x2002);
+	SX1278Drv_AddDeviceAddress(0x3000);
 
 	osKernelStart();
 
@@ -158,13 +164,13 @@ eMBErrorCode    eMBRegHoldingCB( UCHAR * pucRegBuffer,  UCHAR ucMBAddress, USHOR
 
 //	LoRa_Message msg;
 	if(eMode == MB_REG_READ){
-		if(getMBRegValue(ucMBAddress,usAddress,pucRegBuffer))
+		if(getMBRegValue(ucMBAddress,usAddress,(uint16_t *)pucRegBuffer))
 			return MB_ENOERR;
 		else
 			return MB_ENOREG;
 	}
 	else if(eMode == MB_REG_WRITE){
-		if(setMBRegValue(ucMBAddress,usAddress,pucRegBuffer))
+		if(setMBRegValue(ucMBAddress,usAddress,(uint16_t *)pucRegBuffer))
 			return MB_ENOERR;
 		else
 			return MB_ENOREG;
